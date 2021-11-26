@@ -478,6 +478,21 @@ fn write_git_version(manifest_location: &path::Path, w: &mut fs::File) -> io::Re
     Ok(())
 }
 
+#[cfg(feature = "hg")]
+fn write_hg_version(manifest_location: &path::Path, w: &mut fs::File) -> io::Result<()> {
+    let root = manifest_location.to_str().expect("invalid unicode");
+    let out = process::Command::new("hg")
+        .args(["identify", "-R", root, "-i"])
+        .stdout(process::Stdio::piped())
+        .output()?;
+
+    let s = String::from_utf8(out.stdout).expect("utf-8 decoding error");
+    let rev_id = s.as_str().trim_end();
+    write_str_variable!(w, "HG_REV_ID", rev_id, "Mercurial revision identifier.");
+
+    Ok(())
+}
+
 fn write_ci(envmap: &EnvironmentMap, w: &mut fs::File) -> io::Result<()> {
     write_variable!(
         w,
@@ -705,6 +720,7 @@ fn write_cfg(w: &mut fs::File) -> io::Result<()> {
 pub struct Options {
     compiler: bool,
     git: bool,
+    hg: bool,
     ci: bool,
     env: bool,
     deps: bool,
@@ -725,6 +741,7 @@ impl Default for Options {
         Options {
             compiler: true,
             git: true,
+            hg: true,
             ci: true,
             env: true,
             deps: false,
@@ -966,6 +983,10 @@ pub fn write_built_file_with_opts(
         #[cfg(feature = "git2")]
         {
             o!(git, write_git_version(&manifest_location, &mut built_file)?);
+        }
+        #[cfg(feature = "hg")]
+        {
+            o!(hg, write_hg_version(&manifest_location, &mut built_file)?);
         }
     }
     o!(
